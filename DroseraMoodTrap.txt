@@ -1,0 +1,71 @@
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+import {ITrap} from "drosera-contracts/interfaces/ITrap.sol";
+/// ---------- HeartbeatTrap ----------
+contract HeartbeatTrap is ITrap {
+    address public immutable watchAddress;
+    uint256 public immutable heartbeatWindow;
+    string public constant LABEL = "HeartbeatTrap";
+    mapping(address => uint256) public lastPingBlock;
+    constructor(address _watch, uint256 _window) {
+        require(_watch != address(0), "invalid addr");
+        require(_window > 0, "window=0");
+        watchAddress = _watch;
+        heartbeatWindow = _window;
+    }
+    function ping() external {
+        require(msg.sender == watchAddress, "not watcher");
+        lastPingBlock[msg.sender] = block.number;
+    }
+    function collect() external view override returns (bytes memory) {
+        bool isFresh = block.number <= lastPingBlock[watchAddress] + heartbeatWindow;
+        return abi.encode(isFresh, LABEL);
+    }
+    function shouldRespond(bytes[] calldata data)
+        external
+        pure
+        override
+        returns (bool, bytes memory)
+    {
+        (bool fresh, string memory label) = abi.decode(data[0], (bool, string));
+        if (!fresh) return (false, "");
+        return (true, abi.encodePacked("Triggered: ", label));
+    }
+}
+/// ---------- SimpleWeatherOracle ----------
+contract SimpleWeatherOracle {
+    enum Weather { Sunny, Rainy, Windy }
+    Weather public current = Weather.Rainy;
+    function setWeather(Weather w) external {
+        current = w;
+    }
+    function currentWeather() external view returns (Weather) {
+        return current;
+    }
+}
+/// ---------- WeatherMoodTrap ----------
+contract WeatherMoodTrap is ITrap {
+    address public immutable oracle;
+    string public constant NAME = "WeatherMoodTrap";
+    constructor(address _oracle) {
+        require(_oracle != address(0), "invalid oracle");
+        oracle = _oracle;
+    }
+    function collect() external view override returns (bytes memory) {
+        SimpleWeatherOracle.Weather w =
+            SimpleWeatherOracle(oracle).currentWeather();
+        bool sunny = (w == SimpleWeatherOracle.Weather.Sunny);
+        return abi.encode(sunny, NAME);
+    }
+    function shouldRespond(bytes[] calldata data)
+        external
+        pure
+        override
+        returns (bool, bytes memory)
+    {
+        (bool sunny, string memory name) = abi.decode(data[0], (bool, string));
+        if (!sunny) return (false, "");
+        return (true, abi.encodePacked("☀️ Hello from ", name));
+    }
+}
