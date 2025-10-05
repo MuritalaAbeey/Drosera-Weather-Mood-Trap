@@ -2,6 +2,8 @@
 A playful trap that “wakes up” only if an oracle reports that today’s on-chain “weather” is sunny.
 
 
+(```)
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
